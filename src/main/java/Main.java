@@ -75,3 +75,4 @@ Expand 7 lines
       return new byte[] {0};
     }
   }
+}
