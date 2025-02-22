@@ -18,12 +18,12 @@ public class Main {
                      InputStream inputStream = clientSocket.getInputStream();
                      OutputStream outputStream = clientSocket.getOutputStream()) {
 
-                    // Read the first 10 bytes (header portion of request)
+                    // Read at least 10 bytes for the request header
                     byte[] headerBuffer = new byte[10];
                     int bytesRead = inputStream.read(headerBuffer);
 
                     if (bytesRead < 10) {
-                        System.err.println("Invalid request, header too short.");
+                        System.err.println("Error: Insufficient data read. Expected 10 bytes, but got " + bytesRead + " bytes.");
                         continue;
                     }
 
@@ -50,6 +50,8 @@ public class Main {
 
                 } catch (IOException e) {
                     System.err.println("IOException: " + e.getMessage());
+                } catch (java.nio.BufferUnderflowException e) {
+                    System.err.println("BufferUnderflowException: Insufficient data available to read. Please check the request.");
                 }
             }
         } catch (IOException e) {
