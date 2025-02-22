@@ -24,6 +24,7 @@ public class Main {
   ;
   public static void main(String[] args) {
     int port = 9092;
+    System.err.println("Starting server on port " + port + "...");
     try (ServerSocket serverSocket = new ServerSocket(port)) {
       // Since the tester restarts your program quite often, setting
       // SO_REUSEADDR ensures that we don't run into 'Address already in use'
