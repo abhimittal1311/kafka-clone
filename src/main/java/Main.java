@@ -96,16 +96,6 @@ public class Main {
 
     // Helper method to send a valid APIVersions response
     private static void sendApiVersionsResponse(OutputStream outputStream, int correlationId) throws IOException {
-        // Response body structure:
-        // 4 bytes for message_size
-        // 4 bytes for correlation_id
-        // 2 bytes for error_code (0 for no error)
-        // 2 bytes for the number of API versions
-        // For each API version:
-        // 2 bytes for API key
-        // 2 bytes for min_version
-        // 2 bytes for max_version
-
         // Define the API versions
         short apiKey = 18; // API_VERSIONS
         short minVersion = 0; // Minimum version
