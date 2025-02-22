@@ -134,7 +134,7 @@ public class Main {
         }
 
         // Send the response
-        outputStream.write(responseBuffer.array());
+        outputStream.write(responseBuffer.array(), 0, totalResponseSize); // Ensure no extra bytes are sent
         outputStream.flush();
         System.err.println("Sent APIVersions response with correlation_id: " + correlationId);
     }
