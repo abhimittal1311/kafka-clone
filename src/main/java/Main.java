@@ -1,186 +1,148 @@
-import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
-import java.io.IOException;
-import java.io.OutputStream;
+import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+
 public class Main {
-  private static final int UNSUPPORTED_VERSION_ERROR_CODE = 35;
-  private static final int NO_ERROR_CODE = 0;
-  private static final int API_VERSIONS_KEY = 18;
-  private static final int SUPPORTED_API_VERSION_MIN = 0;
-  private static final int SUPPORTED_API_VERSION_MAX = 4;
-  private static final int PORT = 9092;
-  private static final int DESCRIBE_TOPIC_PARTITIONS_KEY = 75;
-  private static void sendDescribeTopicPartitionsResponse(ByteBuffer inputBuf,
-                                                          OutputStream out,
-                                                          int correlationId)
-      throws IOException {
-    int clientIdLength = inputBuf.getShort();
-    byte[] clientId = new byte[clientIdLength];
-    //    System.err.println("Client ID Length: " + clientIdLength);
-    inputBuf.get(clientId);
-    //    inputBuf.position(inputBuf.position()+1);
-    inputBuf.get();
-    //    System.err.println("Buffer:"+inputBuf.get());
-    int arrayLength = inputBuf.get();
-    //    System.err.println("array_length:"+arrayLength);
-    int topiNameLength = inputBuf.get();
-    System.err.println("Topic Name Length: " + topiNameLength);
-    byte[] topicNameBytes = new byte[topiNameLength];
-    String topicName = new String(topicNameBytes, StandardCharsets.UTF_8);
-    inputBuf.get(topicNameBytes);
-    //    inputBuf.position(inputBuf.position()+1);
-    //    inputBuf.get();
-    ByteArrayOutputStream bos = new ByteArrayOutputStream();
-    bos.write(ByteBuffer.allocate(4).putInt(correlationId).array());
-    bos.write(0);
-    bos.write(ByteBuffer.allocate(4).putInt(0).array());
-    bos.write(arrayLength);
-    bos.write(new byte[] {0, 3}); // error code
-    bos.write(topiNameLength);
-    bos.write(topicNameBytes);
-    bos.write(new byte[16]);
-    bos.write(0);
-    bos.write(2);
-    bos.write(new byte[] {0, 0, 0, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0});
-    bos.write(0);
-    bos.write(0xFF);
-    bos.write(0);
-    int size = bos.size();
-    out.write(ByteBuffer.allocate(4).putInt(size).array());
-    out.write(bos.toByteArray());
-    out.flush();
-    System.err.printf(
-        "Correlation ID: %d - Sent DescribeTopicPartitions response for unknown topic %s %n",
-        correlationId, topicName);
-  }
-  private static void sendErrorResponse(OutputStream out, int correlationId)
-      throws IOException {
-    ByteArrayOutputStream bos = new ByteArrayOutputStream();
-    System.err.println("CorrelationID: " + correlationId);
-    bos.write(
-        ByteBuffer.allocate(4).putInt(correlationId).array()); // Correlation ID
-    bos.write(new byte[] {
-        0, (byte)UNSUPPORTED_VERSION_ERROR_CODE}); // Error code (35)
-    int size = bos.size();
-    out.write(ByteBuffer.allocate(4).putInt(size).array()); // Message size
-    out.write(bos.toByteArray());                           // Payload
-    out.flush();
-    System.err.printf(
-        "Correlation ID: %d - Sent Error Response with Code: %d%n",
-        correlationId, UNSUPPORTED_VERSION_ERROR_CODE);
-  }
-  private static void sendAPIVersionsResponse(OutputStream out,
-                                              int correlationId)
-      throws IOException {
-    ByteArrayOutputStream bos = new ByteArrayOutputStream();
-    System.err.println("CorrelationID: " + correlationId);
-    bos.write(
-        ByteBuffer.allocate(4).putInt(correlationId).array()); // Correlation ID
-    bos.write(new byte[] {0, (byte)NO_ERROR_CODE});            // No error
-    bos.write(3); // Number of API keys
-    bos.write(
-        new byte[] {0, (byte)API_VERSIONS_KEY}); // API key (API_VERSIONS_KEY)
-    bos.write(new byte[] {0, (byte)SUPPORTED_API_VERSION_MIN}); // Min version
-    bos.write(new byte[] {0, (byte)SUPPORTED_API_VERSION_MAX}); // Max version
-    bos.write(0);
-    bos.write(new byte[] {0, 75});
-    bos.write(new byte[] {0, 0});
-    bos.write(new byte[] {0, 0});
-    bos.write(0);
-    bos.write(new byte[] {0, 0, 0, 0}); // Throttle time
-    bos.write(0);                       // Tagged fields end byte
-    int size = bos.size();
-    out.write(ByteBuffer.allocate(4).putInt(size).array()); // Message size
-    out.write(bos.toByteArray());                           // Payload
-    out.flush();
-    System.err.printf(
-        "Correlation ID: %d - Sent APIVersions response with no error.%n",
-        correlationId);
-  }
-  private static class ClientHandler implements Runnable {
-    private final Socket clientSocket;
-    public ClientHandler(Socket socket) { this.clientSocket = socket; }
-    @Override
-    public void run() {
-      System.err.println("Client connected: " + clientSocket.getInetAddress());
-      try (DataInputStream di =
-               new DataInputStream(clientSocket.getInputStream());
-           OutputStream out = clientSocket.getOutputStream()) {
-        while (true) { //
-          // Process multiple requests from the same client
-          // Read message length
-          int dataLen = di.readInt();
-          if (dataLen <= 0) {
-            System.err.printf("Invalid message size received: %d%n", dataLen);
-            break;
-          }
-          System.err.printf("Data length: %d%n", dataLen);
-          // Read the message data based on length
-          byte[] tmp = new byte[dataLen];
-          int bytesRead = di.read(tmp);
-          if (bytesRead != dataLen) {
-            System.err.println("Incomplete message received.");
-            break;
-          }
-          ByteBuffer inputBuf = ByteBuffer.wrap(tmp);
-          //          byte[] allData = new byte[inputBuf.remaining()]; // Array
-          //          with remaining bytes inputBuf.get(allData); // Reads
-          //          remaining data into array for (byte b : allData) {
-          //            System.out.printf("%02x ", b);
-          //          }
-          //          System.out.println();
-          short apiKey = inputBuf.getShort();
-          short apiVersion = inputBuf.getShort();
-          int correlationId = inputBuf.getInt();
-          System.err.printf(
-              "API Key: %d, API Version: %d, Correlation ID: %d%n", apiKey,
-              apiVersion, correlationId);
-          // Handle the request based on API key and version
-          if (apiKey == DESCRIBE_TOPIC_PARTITIONS_KEY && apiVersion == 0) {
-            sendDescribeTopicPartitionsResponse(inputBuf, out, correlationId);
-          } else if (apiKey == API_VERSIONS_KEY &&
-                     apiVersion >= SUPPORTED_API_VERSION_MIN &&
-                     apiVersion <= SUPPORTED_API_VERSION_MAX) {
-            sendAPIVersionsResponse(out, correlationId);
-          } else {
-            sendErrorResponse(out, correlationId);
-          }
-        }
-      } catch (IOException e) {
-        System.err.println("IOException while handling client: " +
-                           e.getMessage());
-      } finally {
-        try {
-          clientSocket.close();
+    private static final int UNSUPPORTED_VERSION_ERROR_CODE = 35;
+    private static final int NO_ERROR_CODE = 0;
+    private static final int API_VERSIONS_KEY = 18;
+    private static final int DESCRIBE_TOPIC_PARTITIONS_KEY = 75;
+    private static final int SUPPORTED_API_VERSION_MIN = 0;
+    private static final int SUPPORTED_API_VERSION_MAX = 4;
+    private static final int PORT = 9092;
+
+    public static void main(String[] args) {
+        System.out.println("Kafka server started");
+
+        try (ServerSocket serverSocket = new ServerSocket(PORT)) {
+            serverSocket.setReuseAddress(true);
+
+            while (true) {
+                Socket clientSocket = serverSocket.accept();
+                System.out.println("New client connected: " + clientSocket.getInetAddress());
+
+                ClientHandler clientHandler = new ClientHandler(clientSocket);
+                new Thread(clientHandler).start();
+            }
         } catch (IOException e) {
-          System.err.println("IOException while closing client socket: " +
-                             e.getMessage());
+            System.out.println("IOException: " + e.getMessage());
         }
-      }
     }
-  }
-  public static void main(String[] args) {
-    System.err.println("Starting server on port " + PORT + "...");
-    try (ServerSocket serverSocket = new ServerSocket(PORT)) {
-      serverSocket.setReuseAddress(true);
-      while (true) { // Accept client connections in a loop
-        try {
-          Socket clientSocket = serverSocket.accept();
-          // Create a new thread for each client connection
-          Thread clientThread = new Thread(new ClientHandler(clientSocket));
-          clientThread.start();
-        } catch (IOException e) {
-          System.err.println("IOException while accepting client: " +
-                             e.getMessage());
+
+    private static void sendErrorResponse(OutputStream out, int correlationId) throws IOException {
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        System.err.println("CorrelationID: " + correlationId);
+        bos.write(ByteBuffer.allocate(4).putInt(correlationId).array()); // Correlation ID
+        bos.write(new byte[]{0, (byte) UNSUPPORTED_VERSION_ERROR_CODE}); // Error code (35)
+        int size = bos.size();
+        out.write(ByteBuffer.allocate(4).putInt(size).array()); // Message size
+        out.write(bos.toByteArray()); // Payload
+        out.flush();
+        System.err.printf("Correlation ID: %d - Sent Error Response with Code: %d%n", correlationId, UNSUPPORTED_VERSION_ERROR_CODE);
+    }
+
+    private static void sendAPIVersionsResponse(OutputStream out, int correlationId) throws IOException {
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        System.err.println("CorrelationID: " + correlationId);
+        bos.write(ByteBuffer.allocate(4).putInt(correlationId).array()); // Correlation ID
+        bos.write(new byte[]{0, (byte) NO_ERROR_CODE}); // No error
+        bos.write(3); // Number of API keys (non-standard, 1 byte)
+        bos.write(new byte[]{0, (byte) API_VERSIONS_KEY}); // API key 18 (APIVersions)
+        bos.write(new byte[]{0, (byte) SUPPORTED_API_VERSION_MIN}); // Min version
+        bos.write(new byte[]{0, (byte) SUPPORTED_API_VERSION_MAX}); // Max version
+        bos.write(0); // Tagged fields
+        bos.write(new byte[]{0, (byte) DESCRIBE_TOPIC_PARTITIONS_KEY}); // API key 75 (DescribeTopicPartitions)
+        bos.write(new byte[]{0, 0}); // Min version
+        bos.write(new byte[]{0, 0}); // Max version
+        bos.write(0); // Tagged fields
+        bos.write(new byte[]{0, 0, 0, 0}); // Throttle time
+        bos.write(0); // Tagged fields end byte
+        int size = bos.size();
+        out.write(ByteBuffer.allocate(4).putInt(size).array()); // Message size
+        out.write(bos.toByteArray()); // Payload
+        out.flush();
+        System.err.printf("Correlation ID: %d - Sent APIVersions response with no error.%n", correlationId);
+    }
+
+    private static void sendDescribeTopicPartitionsResponse(ByteBuffer inputBuf, OutputStream out, int correlationId) throws IOException {
+        int clientIdLength = inputBuf.getShort();
+        byte[] clientId = new byte[clientIdLength];
+        inputBuf.get(clientId);
+        inputBuf.get(); // Skip one byte
+        int arrayLength = inputBuf.get();
+        int topicNameLength = inputBuf.get();
+        byte[] topicNameBytes = new byte[topicNameLength];
+        inputBuf.get(topicNameBytes);
+        String topicName = new String(topicNameBytes, StandardCharsets.UTF_8);
+
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        bos.write(ByteBuffer.allocate(4).putInt(correlationId).array()); // Correlation ID
+        bos.write(0); // No error
+        bos.write(ByteBuffer.allocate(4).putInt(0).array()); // Throttle time
+        bos.write(arrayLength); // Array length
+        bos.write(new byte[]{0, 3}); // Error code (UNKNOWN_TOPIC_OR_PARTITION)
+        bos.write(topicNameLength); // Topic name length
+        bos.write(topicNameBytes); // Topic name
+        bos.write(new byte[16]); // Topic ID (00000000-0000-0000-0000-000000000000)
+        bos.write(0); // Tagged fields
+        bos.write(0); // Partitions array length (empty)
+        bos.write(0); // Tagged fields end byte
+
+        int size = bos.size();
+        out.write(ByteBuffer.allocate(4).putInt(size).array()); // Message size
+        out.write(bos.toByteArray()); // Payload
+        out.flush();
+        System.err.printf("Correlation ID: %d - Sent DescribeTopicPartitions response for unknown topic %s %n", correlationId, topicName);
+    }
+
+    private static class ClientHandler implements Runnable {
+        private final Socket clientSocket;
+
+        public ClientHandler(Socket clientSocket) {
+            this.clientSocket = clientSocket;
         }
-      }
-    } catch (IOException e) {
-      System.err.println("IOException while starting server: " +
-                         e.getMessage());
+
+        @Override
+        public void run() {
+            try (DataInputStream in = new DataInputStream(clientSocket.getInputStream());
+                 OutputStream out = clientSocket.getOutputStream()) {
+
+                while (true) {
+                    try {
+                        int incomingMessageSize = in.readInt();
+                        byte[] requestApiKeyBytes = in.readNBytes(2);
+                        short requestApiVersion = in.readShort();
+                        byte[] correlationIdBytes = in.readNBytes(4);
+                        byte[] remainingBytes = new byte[incomingMessageSize - 8];
+                        in.readFully(remainingBytes);
+
+                        int correlationId = ByteBuffer.wrap(correlationIdBytes).getInt();
+                        short apiKey = ByteBuffer.wrap(requestApiKeyBytes).getShort();
+
+                        if (apiKey == DESCRIBE_TOPIC_PARTITIONS_KEY && requestApiVersion == 0) {
+                            ByteBuffer inputBuf = ByteBuffer.wrap(remainingBytes);
+                            sendDescribeTopicPartitionsResponse(inputBuf, out, correlationId);
+                        } else if (apiKey == API_VERSIONS_KEY && requestApiVersion >= SUPPORTED_API_VERSION_MIN && requestApiVersion <= SUPPORTED_API_VERSION_MAX) {
+                            sendAPIVersionsResponse(out, correlationId);
+                        } else {
+                            sendErrorResponse(out, correlationId);
+                        }
+                    } catch (IOException e) {
+                        System.out.println("Client disconnected or error occurred: " + e.getMessage());
+                        break;
+                    }
+                }
+            } catch (IOException e) {
+                System.out.println("IOException: " + e.getMessage());
+            } finally {
+                try {
+                    clientSocket.close();
+                } catch (IOException e) {
+                    System.out.println("IOException while closing client socket: " + e.getMessage());
+                }
+            }
+        }
     }
-  }
 }
