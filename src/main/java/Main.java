@@ -4,6 +4,8 @@ import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
 
 public class Main {
     public static void main(String[] args) {
@@ -56,14 +58,41 @@ public class Main {
                         continue;
                     }
 
-                    // Construct a valid response (no error, version is supported)
-                    int responseSize = 8;  // 4 bytes for message_size + 4 bytes for correlation_id
-                    ByteBuffer responseBuffer = ByteBuffer.allocate(responseSize);
-                    responseBuffer.putInt(responseSize);  // message_size (4 bytes)
-                    responseBuffer.putInt(correlationId); // correlation_id (4 bytes)
+                    // Prepare the response body
+                    ByteBuffer responseBuffer = ByteBuffer.allocate(1024); // Arbitrary large enough buffer to hold the response
+
+                    // error_code (2 bytes)
+                    responseBuffer.putShort((short) 0); // No error, so error_code is 0
+
+                    // api_versions (length: 4 + (2 + 2 + 2) for each entry)
+                    List<ApiVersionEntry> apiVersions = new ArrayList<>();
+                    apiVersions.add(new ApiVersionEntry((short) 18, (short) 0, (short) 4)); // API key 18, MinVersion 0, MaxVersion 4
+
+                    // Adding the number of entries (1 entry in this case)
+                    responseBuffer.putShort((short) apiVersions.size());
+
+                    // Add each API version entry to the response
+                    for (ApiVersionEntry entry : apiVersions) {
+                        responseBuffer.putShort(entry.apiKey);  // api_key
+                        responseBuffer.putShort(entry.minVersion);  // min_version
+                        responseBuffer.putShort(entry.maxVersion);  // max_version
+                    }
+
+                    // Calculate the total response size
+                    int responseSize = responseBuffer.position() + 4 + 4; // message_size (4 bytes) + correlation_id (4 bytes)
+                    ByteBuffer finalResponseBuffer = ByteBuffer.allocate(responseSize);
+
+                    // message_size (4 bytes)
+                    finalResponseBuffer.putInt(responseSize);
+
+                    // correlation_id (4 bytes)
+                    finalResponseBuffer.putInt(correlationId);
+
+                    // Add the error_code and api_versions to the response
+                    finalResponseBuffer.put(responseBuffer.array(), 0, responseBuffer.position());
 
                     // Send response back
-                    outputStream.write(responseBuffer.array());
+                    outputStream.write(finalResponseBuffer.array());
                     outputStream.flush();
                     System.err.println("Sent response with correlation_id: " + correlationId);
 
@@ -81,19 +110,32 @@ public class Main {
         // Response size: 4 bytes for message_size + 4 bytes for correlation_id + 2 bytes for error_code
         int responseSize = 10; // 4 (message_size) + 4 (correlation_id) + 2 (error_code)
         ByteBuffer responseBuffer = ByteBuffer.allocate(responseSize);
-        
+
         // message_size (4 bytes)
         responseBuffer.putInt(responseSize);
-        
+
         // correlation_id (4 bytes)
         responseBuffer.putInt(correlationId);
-        
+
         // error_code (2 bytes)
         responseBuffer.putShort((short) errorCode); // Error code 35 for UNSUPPORTED_VERSION
-        
+
         // Send the error response
         outputStream.write(responseBuffer.array());
         outputStream.flush();
         System.err.println("Sent error response with error_code: " + errorCode);
+    }
+
+    // Inner class to represent API Version entries in the response
+    static class ApiVersionEntry {
+        short apiKey;
+        short minVersion;
+        short maxVersion;
+
+        ApiVersionEntry(short apiKey, short minVersion, short maxVersion) {
+            this.apiKey = apiKey;
+            this.minVersion = minVersion;
+            this.maxVersion = maxVersion;
+        }
     }
 }
