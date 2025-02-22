@@ -30,7 +30,7 @@ public class Main {
         byte[] topicNameBytes = new byte[topicNameLength];
         inputBuf.get(topicNameBytes);
         String topicName = new String(topicNameBytes, StandardCharsets.UTF_8);
-
+    
         // Read the __cluster_metadata log file to get topic metadata
         File logFile = new File(CLUSTER_METADATA_LOG_PATH);
         if (!logFile.exists()) {
@@ -38,12 +38,12 @@ public class Main {
             sendErrorResponse(out, correlationId);
             return;
         }
-
+    
         // Parse the log file to find the topic metadata
         // This is a simplified example; in a real implementation, you would need to parse the log file properly
         String topicId = UUID.randomUUID().toString(); // Placeholder for topic UUID
         int partitionId = 0; // Placeholder for partition ID
-
+    
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         bos.write(ByteBuffer.allocate(4).putInt(correlationId).array()); // Correlation ID
         bos.write(0); // No error
@@ -61,13 +61,14 @@ public class Main {
         bos.write(new byte[]{0, 0, 0, 0}); // Replica nodes
         bos.write(new byte[]{0, 0, 0, 0}); // ISR nodes
         bos.write(new byte[]{0, 0, 0, 0}); // Offline replicas
+        bos.write(0); // is_internal (0 = false)
         bos.write(0); // Tagged fields end byte
-
+    
         int size = bos.size();
         out.write(ByteBuffer.allocate(4).putInt(size).array()); // Message size
         out.write(bos.toByteArray()); // Payload
         out.flush();
-
+    
         System.err.printf("Correlation ID: %d - Sent DescribeTopicPartitions response for topic %s%n", correlationId, topicName);
     }
 
