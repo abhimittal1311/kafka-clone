@@ -1,99 +1,94 @@
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.ByteBuffer;
-
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 public class Main {
-    public static void main(String[] args) {
-        System.err.println("Logs from your program will appear here!");
-
-        int port = 9092;
-        try (ServerSocket serverSocket = new ServerSocket(port)) {
-            serverSocket.setReuseAddress(true);
-
-            while (true) {
-                try (Socket clientSocket = serverSocket.accept();
-                     InputStream inputStream = clientSocket.getInputStream();
-                     OutputStream outputStream = clientSocket.getOutputStream()) {
-
-                    // Read the first 4 bytes for message_size
-                    byte[] sizeBuffer = new byte[4];
-                    int bytesRead = inputStream.read(sizeBuffer);
-                    if (bytesRead < 4) {
-                        System.err.println("Error: Insufficient data for message_size.");
-                        continue;
-                    }
-
-                    // Extract message_size (4 bytes)
-                    ByteBuffer sizeBufferWrapper = ByteBuffer.wrap(sizeBuffer);
-                    int messageSize = sizeBufferWrapper.getInt();  // message_size (4 bytes)
-                    System.err.println("Received message_size: " + messageSize);
-
-                    // Read the rest of the header (request_api_key, request_api_version, correlation_id)
-                    byte[] headerBuffer = new byte[10]; // 2 bytes API key + 2 bytes API version + 4 bytes correlation_id
-                    bytesRead = inputStream.read(headerBuffer);
-                    if (bytesRead < 10) {
-                        System.err.println("Error: Insufficient data for header.");
-                        continue;
-                    }
-
-                    // Extract values from the header (API key, API version, correlation_id)
-                    ByteBuffer requestBuffer = ByteBuffer.wrap(headerBuffer);
-                    short apiKey = requestBuffer.getShort(); // request_api_key (2 bytes)
-                    short apiVersion = requestBuffer.getShort(); // request_api_version (2 bytes)
-                    int correlationId = requestBuffer.getInt(); // correlation_id (4 bytes)
-
-                    System.err.println("Received API Key: " + apiKey);
-                    System.err.println("Received API Version: " + apiVersion);
-                    System.err.println("Received correlation_id: " + correlationId);
-
-                    // Check if the request_api_version is valid (0 to 4)
-                    if (apiVersion < 0 || apiVersion > 4) {
-                        // Unsupported version, respond with error code 35 (UNSUPPORTED_VERSION)
-                        sendErrorResponse(outputStream, correlationId, 35); // Error code 35 for UNSUPPORTED_VERSION
-                        continue;
-                    }
-
-                    // Construct a valid response (no error, version is supported)
-                    int responseSize = 8;  // 4 bytes for message_size + 4 bytes for correlation_id
-                    ByteBuffer responseBuffer = ByteBuffer.allocate(responseSize);
-                    responseBuffer.putInt(responseSize);  // message_size (4 bytes)
-                    responseBuffer.putInt(correlationId); // correlation_id (4 bytes)
-
-                    // Send response back
-                    outputStream.write(responseBuffer.array());
-                    outputStream.flush();
-                    System.err.println("Sent response with correlation_id: " + correlationId);
-
-                } catch (IOException e) {
-                    System.err.println("IOException: " + e.getMessage());
-                }
-            }
-        } catch (IOException e) {
-            System.err.println("IOException: " + e.getMessage());
+  public static void main(String[] args) {
+    System.err.println("Starting server...");
+    ServerSocket serverSocket;
+    Socket clientSocket = null;
+    int port = 9092;
+    try {
+      serverSocket = new ServerSocket(port);
+      // Since the tester restarts your program quite often, setting
+      // SO_REUSEADDR ensures that we don't run into 'Address already in use'
+      // errors
+      serverSocket.setReuseAddress(true);
+      // Wait for connection from client.
+      clientSocket = serverSocket.accept();
+      // Get input stream
+      InputStream in = clientSocket.getInputStream();
+      // Get output stream
+      OutputStream out = clientSocket.getOutputStream();
+      // request
+      // size 4 bytes
+      in.readNBytes(4);
+      // RQ header
+      // api key 16bit
+      var apiKey = in.readNBytes(2);
+      // api version 16bit
+      var apiVersionBytes = in.readNBytes(2);
+      var apiVersion = ByteBuffer.wrap(apiVersionBytes).getShort();
+      // correlation id 32bit
+      byte[] cId = in.readNBytes(4);
+      // client_id nullable string
+      // tagged fields nullable
+      // response
+      var bos = new ByteArrayOutputStream();
+      // size 32bit
+      // written directly to output stream below
+      //            bos.write(new byte[]{0, 0, 0, 0});
+      // correlation id 32bit
+      bos.write(cId);
+      // tagged fields nullable
+      //            bos.write(0); // tagged fields
+      // request specific data
+      // APIVersions (v4)
+      if (apiVersion < 0 || apiVersion > 4) {
+        // error code 16bit
+        bos.write(new byte[] {0, 35});
+      } else {
+        // error code 16bit
+        //    api_key => INT16
+        //    min_version => INT16
+        //    max_version => INT16
+        //  throttle_time_ms => INT32
+        bos.write(new byte[] {0, 0});       // error code
+        bos.write(2);                       // array size + 1
+        bos.write(new byte[] {0, 18});      // api_key
+        bos.write(new byte[] {0, 3});       // min version
+        bos.write(new byte[] {0, 4});       // max version
+        bos.write(0);                       // tagged fields
+        bos.write(new byte[] {0, 0, 0, 0}); // throttle time
+        // All requests and responses will end with a tagged field buffer.  If
+        // there are no tagged fields, this will only be a single zero byte.
+        bos.write(0); // tagged fields
+      }
+      // error message nullable string
+      // tagged fields nullable
+      int size = bos.size();
+      byte[] sizeBytes = ByteBuffer.allocate(4).putInt(size).array();
+      var response = bos.toByteArray();
+      System.out.println(Arrays.toString(sizeBytes));
+      System.out.println(Arrays.toString(response));
+      out.write(sizeBytes);
+      out.write(response);
+      out.flush();
+    } catch (IOException e) {
+      System.out.println("IOException: " + e.getMessage());
+    } finally {
+      try {
+        if (clientSocket != null) {
+          clientSocket.close();
         }
+      } catch (IOException e) {
+        System.out.println("IOException: " + e.getMessage());
+      }
     }
-
-    // Helper method to send an error response with a specific error code
-    private static void sendErrorResponse(OutputStream outputStream, int correlationId, int errorCode) throws IOException {
-        // Response size: 4 bytes for message_size + 4 bytes for correlation_id + 2 bytes for error_code
-        int responseSize = 10; // 4 (message_size) + 4 (correlation_id) + 2 (error_code)
-        ByteBuffer responseBuffer = ByteBuffer.allocate(responseSize);
-        
-        // message_size (4 bytes)
-        responseBuffer.putInt(responseSize);
-        
-        // correlation_id (4 bytes)
-        responseBuffer.putInt(correlationId);
-        
-        // error_code (2 bytes)
-        responseBuffer.putShort((short) errorCode); // Error code 35 for UNSUPPORTED_VERSION
-        
-        // Send the error response
-        outputStream.write(responseBuffer.array());
-        outputStream.flush();
-        System.err.println("Sent error response with error_code: " + errorCode);
-    }
+  }
 }
