@@ -76,7 +76,7 @@ public class Main {
         byte[] topicNameBytes = new byte[topicNameLength];
         inputBuf.get(topicNameBytes);
         String topicName = new String(topicNameBytes, StandardCharsets.UTF_8);
-
+    
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         bos.write(ByteBuffer.allocate(4).putInt(correlationId).array()); // Correlation ID
         bos.write(0); // No error
@@ -88,8 +88,9 @@ public class Main {
         bos.write(new byte[16]); // Topic ID (00000000-0000-0000-0000-000000000000)
         bos.write(0); // Tagged fields
         bos.write(0); // Partitions array length (empty)
+        bos.write(ByteBuffer.allocate(4).putInt(-1).array()); // topic_authorized_operations (INT32, -1)
         bos.write(0); // Tagged fields end byte
-
+    
         int size = bos.size();
         out.write(ByteBuffer.allocate(4).putInt(size).array()); // Message size
         out.write(bos.toByteArray()); // Payload
