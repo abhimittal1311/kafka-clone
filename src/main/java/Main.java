@@ -107,7 +107,7 @@ public class Main {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         bos.write(ByteBuffer.allocate(4).putInt(correlationId).array()); // Correlation ID
         bos.write(0); // No error
-        bos.write(ByteBuffer.allocate(4).putInt(0).array()); // Throttle time
+        bos.write(ByteBuffer.allocate(4).putInt(0).array()); // Throttle time (4 bytes)
         bos.write(1); // Number of topics (array length)
         bos.write(new byte[]{0, (byte) NO_ERROR_CODE}); // Error code
         bos.write(topicNameLength); // Topic name length
