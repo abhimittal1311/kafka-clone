@@ -83,7 +83,8 @@ public class Main {
         int totalResponseSize = 4 + // message_size (4 bytes)
                 4 + // correlation_id (4 bytes)
                 2 + // error_code (2 bytes)
-                1 + // array length (1 byte, non-standard)
+                4 + // throttle_time_ms (4 bytes)
+                4 + // array length (4 bytes)
                 6; // API key 18 entry (6 bytes: 2 + 2 + 2)
 
         // Allocate a buffer for the response
@@ -99,8 +100,11 @@ public class Main {
         // Write error_code (2 bytes)
         responseBuffer.putShort((short) 0); // No error
 
-        // Write array length (1 byte, non-standard)
-        responseBuffer.put((byte) 1); // Array length is 1 (non-standard INT8)
+        // Write throttle_time_ms (4 bytes)
+        responseBuffer.putInt(0); // throttle_time_ms (set to 0 for now)
+
+        // Write array length (4 bytes)
+        responseBuffer.putInt(1); // Array length is 1
 
         // Write API key 18 entry (6 bytes)
         responseBuffer.putShort((short) 18); // API key 18 (API_VERSIONS)
