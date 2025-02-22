@@ -18,24 +18,35 @@ public class Main {
                      InputStream inputStream = clientSocket.getInputStream();
                      OutputStream outputStream = clientSocket.getOutputStream()) {
 
-                    // Read the request (though we don't process it yet)
-                    byte[] requestBuffer = new byte[1024];
-                    int bytesRead = inputStream.read(requestBuffer);
-                    System.err.println("Received request of size: " + bytesRead + " bytes");
+                    // Read the first 10 bytes (header portion of request)
+                    byte[] headerBuffer = new byte[10];
+                    int bytesRead = inputStream.read(headerBuffer);
+                    
+                    if (bytesRead < 10) {
+                        System.err.println("Invalid request, header too short.");
+                        continue;
+                    }
 
-                    // Hardcoded response values
-                    int messageSize = 4;  // Placeholder
-                    int correlationId = 7; // Hardcoded
+                    // Extract correlation_id (bytes 6 to 10)
+                    ByteBuffer requestBuffer = ByteBuffer.wrap(headerBuffer);
+                    requestBuffer.position(4); // Skip message_size (4 bytes)
+                    short apiKey = requestBuffer.getShort(); // Read API key (2 bytes)
+                    short apiVersion = requestBuffer.getShort(); // Read API version (2 bytes)
+                    int correlationId = requestBuffer.getInt(); // Read correlation_id (4 bytes)
+                    
+                    System.err.println("Extracted correlation_id: " + correlationId);
 
-                    // Construct the response
-                    ByteBuffer buffer = ByteBuffer.allocate(8); // 4 bytes for message_size + 4 bytes for correlation_id
-                    buffer.putInt(messageSize);
-                    buffer.putInt(correlationId);
+                    // Construct response
+                    int messageSize = 4;  // Placeholder for now
 
-                    // Send the response
-                    outputStream.write(buffer.array());
+                    ByteBuffer responseBuffer = ByteBuffer.allocate(8);
+                    responseBuffer.putInt(messageSize);
+                    responseBuffer.putInt(correlationId); // Use extracted correlation_id
+
+                    // Send response back
+                    outputStream.write(responseBuffer.array());
                     outputStream.flush();
-                    System.err.println("Sent response with correlation_id = 7");
+                    System.err.println("Sent response with correlation_id: " + correlationId);
 
                 } catch (IOException e) {
                     System.err.println("IOException: " + e.getMessage());
