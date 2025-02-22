@@ -101,7 +101,7 @@ public class Main {
         responseBuffer.putShort((short) 0); // No error
 
         // Write throttle_time_ms (4 bytes)
-        responseBuffer.putInt(0); // throttle_time_ms (set to 0 for now)
+        responseBuffer.putInt(0); // throttle_time_ms (set to 0)
 
         // Write array length (4 bytes)
         responseBuffer.putInt(1); // Array length is 1
