@@ -37,23 +37,31 @@ public class Main {
             ByteBuffer bb = ByteBuffer.wrap(buffer);
 
             // Parse records from the log file
-            while (bb.hasRemaining()) {
+            while (bb.remaining() >= 4) { // Ensure there's enough data for the next record
                 int recordLength = bb.getInt();
+                if (recordLength <= 0 || bb.remaining() < recordLength) {
+                    break; // Invalid record length or not enough data
+                }
+
                 byte[] recordBytes = new byte[recordLength];
                 bb.get(recordBytes);
                 ByteBuffer record = ByteBuffer.wrap(recordBytes);
 
                 // Example: Extract topic name and topic ID (simplified)
-                short topicNameLength = record.getShort();
-                byte[] topicNameBytes = new byte[topicNameLength];
-                record.get(topicNameBytes);
-                String topicName = new String(topicNameBytes, StandardCharsets.UTF_8);
+                if (record.remaining() >= 2) {
+                    short topicNameLength = record.getShort();
+                    if (record.remaining() >= topicNameLength + 16) {
+                        byte[] topicNameBytes = new byte[topicNameLength];
+                        record.get(topicNameBytes);
+                        String topicName = new String(topicNameBytes, StandardCharsets.UTF_8);
 
-                long mostSigBits = record.getLong();
-                long leastSigBits = record.getLong();
-                UUID topicId = new UUID(mostSigBits, leastSigBits);
+                        long mostSigBits = record.getLong();
+                        long leastSigBits = record.getLong();
+                        UUID topicId = new UUID(mostSigBits, leastSigBits);
 
-                topicMetadata.put(topicName, topicId);
+                        topicMetadata.put(topicName, topicId);
+                    }
+                }
             }
         }
         return topicMetadata;
