@@ -1,89 +1,135 @@
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 
 public class Main {
     public static void main(String[] args) {
-        System.err.println("Starting server...");
-        ServerSocket serverSocket = null;
-        Socket clientSocket = null;
-        int port = 9092;
+        System.err.println("Logs from your program will appear here!");
 
-        try {
-            serverSocket = new ServerSocket(port);
-            // Allow socket reuse to avoid 'Address already in use' errors
+        int port = 9092;
+        try (ServerSocket serverSocket = new ServerSocket(port)) {
             serverSocket.setReuseAddress(true);
 
-            // Wait for client connection
-            clientSocket = serverSocket.accept();
+            while (true) {
+                try (Socket clientSocket = serverSocket.accept();
+                     InputStream inputStream = clientSocket.getInputStream();
+                     OutputStream outputStream = clientSocket.getOutputStream()) {
 
-            // Get input and output streams
-            InputStream in = clientSocket.getInputStream();
-            OutputStream out = clientSocket.getOutputStream();
+                    // Read the first 4 bytes for message_size
+                    byte[] sizeBuffer = new byte[4];
+                    int bytesRead = inputStream.read(sizeBuffer);
+                    if (bytesRead < 4) {
+                        System.err.println("Error: Insufficient data for message_size.");
+                        continue;
+                    }
 
-            // Read request size (4 bytes)
-            byte[] sizeBuffer = new byte[4];
-            in.read(sizeBuffer);
-            int messageSize = ByteBuffer.wrap(sizeBuffer).getInt();
-            System.err.println("Received message size: " + messageSize);
+                    // Extract message_size (4 bytes)
+                    ByteBuffer sizeBufferWrapper = ByteBuffer.wrap(sizeBuffer);
+                    int messageSize = sizeBufferWrapper.getInt();  // message_size (4 bytes)
+                    System.err.println("Received message_size: " + messageSize);
 
-            // Read the request header (API key, version, and correlation ID)
-            byte[] headerBuffer = new byte[10]; // API key (2 bytes) + API version (2 bytes) + correlation ID (4 bytes)
-            in.read(headerBuffer);
-            ByteBuffer header = ByteBuffer.wrap(headerBuffer);
-            short apiKey = header.getShort();
-            short apiVersion = header.getShort();
-            int correlationId = header.getInt();
+                    // Read the rest of the header (request_api_key, request_api_version, correlation_id)
+                    byte[] headerBuffer = new byte[10]; // 2 bytes API key + 2 bytes API version + 4 bytes correlation_id
+                    bytesRead = inputStream.read(headerBuffer);
+                    if (bytesRead < 10) {
+                        System.err.println("Error: Insufficient data for header.");
+                        continue;
+                    }
 
-            System.err.println("Received API Key: " + apiKey);
-            System.err.println("Received API Version: " + apiVersion);
-            System.err.println("Received Correlation ID: " + correlationId);
+                    // Extract values from the header (API key, API version, correlation_id)
+                    ByteBuffer requestBuffer = ByteBuffer.wrap(headerBuffer);
+                    short apiKey = requestBuffer.getShort(); // request_api_key (2 bytes)
+                    short apiVersion = requestBuffer.getShort(); // request_api_version (2 bytes)
+                    int correlationId = requestBuffer.getInt(); // correlation_id (4 bytes)
 
-            // Prepare response
-            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                    System.err.println("Received API Key: " + apiKey);
+                    System.err.println("Received API Version: " + apiVersion);
+                    System.err.println("Received correlation_id: " + correlationId);
 
-            // Handle unsupported API version (error code 35)
-            if (apiVersion < 0 || apiVersion > 4) {
-                bos.write(new byte[] {0, 35}); // Error code 35 (UNSUPPORTED_VERSION)
-            } else {
-                bos.write(new byte[] {0, 0}); // Error code 0 (no error)
-                bos.write(1); // Number of API versions in the response (1 entry)
-                bos.write(new byte[] {0, 18}); // API key (18)
-                bos.write(new byte[] {0, 3}); // Min version (3)
-                bos.write(new byte[] {0, 4}); // Max version (4)
-                bos.write(new byte[] {0, 0, 0, 0}); // Throttle time (0)
+                    // Check if the request_api_version is valid (0 to 4)
+                    if (apiVersion < 0 || apiVersion > 4) {
+                        // Unsupported version, respond with error code 35 (UNSUPPORTED_VERSION)
+                        sendErrorResponse(outputStream, correlationId, 35); // Error code 35 for UNSUPPORTED_VERSION
+                        continue;
+                    }
+
+                    // Handle APIVersions request (API key 18)
+                    if (apiKey == 18) {
+                        sendApiVersionsResponse(outputStream, correlationId);
+                    } else {
+                        // For unsupported API keys, respond with error code 1 (UNKNOWN_API_KEY)
+                        sendErrorResponse(outputStream, correlationId, 1); // Error code 1 for UNKNOWN_API_KEY
+                    }
+
+                } catch (IOException e) {
+                    System.err.println("IOException: " + e.getMessage());
+                }
             }
-
-            // Calculate the total size of the response
-            byte[] responseBytes = bos.toByteArray();
-            int totalSize = 4 + 4 + responseBytes.length; // 4 bytes for message size + 4 bytes for correlation ID + response data
-
-            // Prepare final response
-            ByteArrayOutputStream finalResponse = new ByteArrayOutputStream();
-            finalResponse.write(ByteBuffer.allocate(4).putInt(totalSize).array()); // Message size (4 bytes)
-            finalResponse.write(ByteBuffer.allocate(4).putInt(correlationId).array()); // Correlation ID (4 bytes)
-            finalResponse.write(responseBytes); // Response body
-
-            // Send the response
-            out.write(finalResponse.toByteArray());
-            out.flush();
-            System.err.println("Sent response with Correlation ID: " + correlationId);
-
         } catch (IOException e) {
             System.err.println("IOException: " + e.getMessage());
-        } finally {
-            try {
-                if (clientSocket != null) {
-                    clientSocket.close();
-                }
-            } catch (IOException e) {
-                System.err.println("IOException during socket close: " + e.getMessage());
-            }
         }
+    }
+
+    // Helper method to send an error response with a specific error code
+    private static void sendErrorResponse(OutputStream outputStream, int correlationId, int errorCode) throws IOException {
+        // Response size: 4 bytes for message_size + 4 bytes for correlation_id + 2 bytes for error_code
+        int responseSize = 10; // 4 (message_size) + 4 (correlation_id) + 2 (error_code)
+        ByteBuffer responseBuffer = ByteBuffer.allocate(responseSize);
+        
+        // message_size (4 bytes)
+        responseBuffer.putInt(responseSize);
+        
+        // correlation_id (4 bytes)
+        responseBuffer.putInt(correlationId);
+        
+        // error_code (2 bytes)
+        responseBuffer.putShort((short) errorCode); // Error code 35 for UNSUPPORTED_VERSION
+        
+        // Send the error response
+        outputStream.write(responseBuffer.array());
+        outputStream.flush();
+        System.err.println("Sent error response with error_code: " + errorCode);
+    }
+
+    // Helper method to send a valid APIVersions response
+    private static void sendApiVersionsResponse(OutputStream outputStream, int correlationId) throws IOException {
+        // Response body structure:
+        // 4 bytes for message_size
+        // 4 bytes for correlation_id
+        // 2 bytes for error_code (0 for no error)
+        // 2 bytes for the number of API versions
+        // For each API version:
+        // 2 bytes for API key
+        // 2 bytes for min_version
+        // 2 bytes for max_version
+
+        // Define the API versions
+        short apiKey = 18; // API_VERSIONS
+        short minVersion = 0; // Minimum version
+        short maxVersion = 4; // Maximum version
+
+        // Number of API versions
+        short numberOfVersions = 1; // We have one version for API key 18
+
+        // Calculate the response size
+        int responseSize = 4 + 4 + 2 + 2 + 2 + 2; // message_size + correlation_id + error_code + number_of_versions + (api_key + min_version + max_version)
+        ByteBuffer responseBuffer = ByteBuffer.allocate(responseSize);
+
+        // Fill the response buffer
+        responseBuffer.putInt(responseSize); // message_size
+        responseBuffer.putInt(correlationId); // correlation_id
+        responseBuffer.putShort((short) 0); // error_code (0 for no error)
+        responseBuffer.putShort(numberOfVersions); // number of API versions
+        responseBuffer.putShort(apiKey); // API key
+        responseBuffer.putShort(minVersion); // min_version
+        responseBuffer.putShort(maxVersion); // max_version
+
+        // Send the response back
+        outputStream.write(responseBuffer.array());
+        outputStream.flush();
+        System.err.println("Sent APIVersions response with correlation_id: " + correlationId);
     }
 }
