@@ -85,14 +85,15 @@ class ClientHandler implements Runnable {
         //   .num_api_keys
         byteArrayStream.write(new byte[]{0, 2}); // Array length (2 bytes, non-standard)
 
-        //   .api_key
-        byteArrayStream.write(requestApiKeyBytes);
-
-        //   .min_version
+        // Entry for APIVersions (API key 18)
+        byteArrayStream.write(new byte[]{0, 18}); // API key 18 (APIVersions)
         byteArrayStream.write(new byte[]{0, 0}); // Min version (2 bytes)
-
-        //   .max_version
         byteArrayStream.write(new byte[]{0, 4}); // Max version (2 bytes)
+
+        // Entry for DescribeTopicPartitions (API key 75)
+        byteArrayStream.write(new byte[]{0, 75}); // API key 75 (DescribeTopicPartitions)
+        byteArrayStream.write(new byte[]{0, 0}); // Min version (2 bytes)
+        byteArrayStream.write(new byte[]{0, 0}); // Max version (2 bytes)
 
         //   .TAG_BUFFER
         byteArrayStream.write(new byte[]{0});
