@@ -99,6 +99,7 @@ public class Main {
 
         // Calculate the total size of the response body
         int responseBodySize = 2 + // error_code (2 bytes)
+                4 + // throttle_time_ms (4 bytes)
                 4 + // array length (4 bytes)
                 apiVersions.size() * 6; // Each ApiVersion entry is 6 bytes (2 + 2 + 2)
 
@@ -118,6 +119,9 @@ public class Main {
 
         // Write error_code (2 bytes)
         responseBuffer.putShort((short) 0); // No error
+
+        // Write throttle_time_ms (4 bytes)
+        responseBuffer.putInt(0); // throttle_time_ms (set to 0 for now)
 
         // Write array length (4 bytes)
         responseBuffer.putInt(apiVersions.size());
