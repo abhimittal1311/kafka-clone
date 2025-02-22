@@ -91,8 +91,9 @@ public class Main {
                     // Add the error_code and api_versions to the response
                     finalResponseBuffer.put(responseBuffer.array(), 0, responseBuffer.position());
 
-                    // Send response back
-                    outputStream.write(finalResponseBuffer.array());
+                    // Ensure the response is fully written
+                    byte[] finalResponse = finalResponseBuffer.array();
+                    outputStream.write(finalResponse);
                     outputStream.flush();
                     System.err.println("Sent response with correlation_id: " + correlationId);
 
@@ -121,7 +122,8 @@ public class Main {
         responseBuffer.putShort((short) errorCode); // Error code 35 for UNSUPPORTED_VERSION
 
         // Send the error response
-        outputStream.write(responseBuffer.array());
+        byte[] response = responseBuffer.array();
+        outputStream.write(response);
         outputStream.flush();
         System.err.println("Sent error response with error_code: " + errorCode);
     }
