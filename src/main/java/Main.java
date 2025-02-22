@@ -97,11 +97,12 @@ public class Main {
         List<ApiVersion> apiVersions = new ArrayList<>();
         apiVersions.add(new ApiVersion((short) 18, (short) 0, (short) 4)); // API key 18 (API_VERSIONS), MinVersion 0, MaxVersion 4
 
-        // Calculate the total size of the response
+        // Calculate the total size of the response body
         int responseBodySize = 2 + // error_code (2 bytes)
                 4 + // array length (4 bytes)
                 apiVersions.size() * 6; // Each ApiVersion entry is 6 bytes (2 + 2 + 2)
 
+        // Calculate the total size of the response (message_size + correlation_id + response_body)
         int totalResponseSize = 4 + // message_size (4 bytes)
                 4 + // correlation_id (4 bytes)
                 responseBodySize;
@@ -110,7 +111,7 @@ public class Main {
         ByteBuffer responseBuffer = ByteBuffer.allocate(totalResponseSize);
 
         // Write message_size (4 bytes)
-        responseBuffer.putInt(totalResponseSize);
+        responseBuffer.putInt(totalResponseSize - 4); // Exclude the message_size field itself
 
         // Write correlation_id (4 bytes)
         responseBuffer.putInt(correlationId);
