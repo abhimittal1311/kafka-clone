@@ -2,11 +2,13 @@ import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
+import java.nio.charset.StandardCharsets;
+import java.util.UUID;
 
 public class Main {
     private static final int UNSUPPORTED_VERSION_ERROR_CODE = 35;
     private static final int NO_ERROR_CODE = 0;
+    private static final int UNKNOWN_TOPIC_OR_PARTITION_ERROR_CODE = 3;
     private static final int API_VERSIONS_KEY = 18;
     private static final int DESCRIBE_TOPIC_PARTITIONS_KEY = 75;
     private static final int SUPPORTED_API_VERSION_MIN = 0;
@@ -14,7 +16,7 @@ public class Main {
     private static final int PORT = 9092;
 
     public static void main(String[] args) {
-        System.out.println("kafka server started");
+        System.out.println("Kafka server started");
 
         try (ServerSocket serverSocket = new ServerSocket(PORT)) {
             // Since the tester restarts your program quite often, setting
@@ -71,6 +73,47 @@ public class Main {
         System.err.printf("Correlation ID: %d - Sent APIVersions response with no error.%n", correlationId);
     }
 
+    private static void sendDescribeTopicPartitionsResponse(OutputStream out, int correlationId, String topicName) throws IOException {
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+
+        // .ResponseHeader
+        //   .correlation_id
+        bos.write(ByteBuffer.allocate(4).putInt(correlationId).array());
+
+        // .ResponseBody
+        //   .error_code
+        bos.write(new byte[]{0, (byte) UNKNOWN_TOPIC_OR_PARTITION_ERROR_CODE}); // Error code 3 (UNKNOWN_TOPIC_OR_PARTITION)
+
+        //   .topics
+        bos.write(1); // Number of topics (1 byte)
+
+        //     .topic_name
+        byte[] topicNameBytes = topicName.getBytes(StandardCharsets.UTF_8);
+        bos.write(ByteBuffer.allocate(2).putShort((short) topicNameBytes.length).array()); // Topic name length (2 bytes)
+        bos.write(topicNameBytes); // Topic name
+
+        //     .topic_id
+        UUID topicId = UUID.fromString("00000000-0000-0000-0000-000000000000");
+        bos.write(ByteBuffer.allocate(16).putLong(topicId.getMostSignificantBits()).putLong(topicId.getLeastSignificantBits()).array()); // Topic ID (16 bytes)
+
+        //     .partitions
+        bos.write(0); // Number of partitions (1 byte, empty array)
+
+        //   .throttle_time_ms
+        bos.write(new byte[]{0, 0, 0, 0}); // Throttle time (4 bytes)
+
+        //   .TAG_BUFFER
+        bos.write(0); // Tagged fields end byte
+
+        // Write the response message
+        byte[] responseBytes = bos.toByteArray();
+        out.write(ByteBuffer.allocate(4).putInt(responseBytes.length).array()); // Message size (4 bytes)
+        out.write(responseBytes); // Response body
+        out.flush();
+
+        System.err.printf("Correlation ID: %d - Sent DescribeTopicPartitions response for topic: %s%n", correlationId, topicName);
+    }
+
     private static class ClientHandler implements Runnable {
         private final Socket clientSocket;
 
@@ -97,11 +140,27 @@ public class Main {
                         // Extract correlation ID
                         int correlationId = ByteBuffer.wrap(correlationIdBytes).getInt();
 
-                        // Handle the request based on API key and version
-                        if (requestApiVersion < SUPPORTED_API_VERSION_MIN || requestApiVersion > SUPPORTED_API_VERSION_MAX) {
-                            sendErrorResponse(out, correlationId);
+                        // Handle the request based on API key
+                        short apiKey = ByteBuffer.wrap(requestApiKeyBytes).getShort();
+                        if (apiKey == API_VERSIONS_KEY) {
+                            if (requestApiVersion < SUPPORTED_API_VERSION_MIN || requestApiVersion > SUPPORTED_API_VERSION_MAX) {
+                                sendErrorResponse(out, correlationId);
+                            } else {
+                                sendAPIVersionsResponse(out, correlationId);
+                            }
+                        } else if (apiKey == DESCRIBE_TOPIC_PARTITIONS_KEY) {
+                            // Parse the DescribeTopicPartitions request
+                            ByteBuffer requestBuffer = ByteBuffer.wrap(remainingBytes);
+                            int topicNameLength = requestBuffer.getShort();
+                            byte[] topicNameBytes = new byte[topicNameLength];
+                            requestBuffer.get(topicNameBytes);
+                            String topicName = new String(topicNameBytes, StandardCharsets.UTF_8);
+
+                            // Send the DescribeTopicPartitions response
+                            sendDescribeTopicPartitionsResponse(out, correlationId, topicName);
                         } else {
-                            sendAPIVersionsResponse(out, correlationId);
+                            // Unsupported API key
+                            sendErrorResponse(out, correlationId);
                         }
                     } catch (IOException e) {
                         System.out.println("Client disconnected or error occurred: " + e.getMessage());
