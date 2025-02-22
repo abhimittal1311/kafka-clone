@@ -1,34 +1,48 @@
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.ByteBuffer;
 
 public class Main {
-  public static void main(String[] args){
-    // You can use print statements as follows for debugging, they'll be visible when running tests.
-    System.err.println("Logs from your program will appear here!");
+    public static void main(String[] args) {
+        System.err.println("Logs from your program will appear here!");
 
-    // Uncomment this block to pass the first stage
-    
-    ServerSocket serverSocket = null;
-    Socket clientSocket = null;
-    int port = 9092;
-    try {
-      serverSocket = new ServerSocket(port);
-      // Since the tester restarts your program quite often, setting SO_REUSEADDR
-      // ensures that we don't run into 'Address already in use' errors
-      serverSocket.setReuseAddress(true);
-      // Wait for connection from client.
-      clientSocket = serverSocket.accept();
-    } catch (IOException e) {
-      System.out.println("IOException: " + e.getMessage());
-    } finally {
-      try {
-        if (clientSocket != null) {
-          clientSocket.close();
+        int port = 9092;
+        try (ServerSocket serverSocket = new ServerSocket(port)) {
+            serverSocket.setReuseAddress(true);
+
+            while (true) {
+                try (Socket clientSocket = serverSocket.accept();
+                     InputStream inputStream = clientSocket.getInputStream();
+                     OutputStream outputStream = clientSocket.getOutputStream()) {
+
+                    // Read the request (though we don't process it yet)
+                    byte[] requestBuffer = new byte[1024];
+                    int bytesRead = inputStream.read(requestBuffer);
+                    System.err.println("Received request of size: " + bytesRead + " bytes");
+
+                    // Hardcoded response values
+                    int messageSize = 4;  // Placeholder
+                    int correlationId = 7; // Hardcoded
+
+                    // Construct the response
+                    ByteBuffer buffer = ByteBuffer.allocate(8); // 4 bytes for message_size + 4 bytes for correlation_id
+                    buffer.putInt(messageSize);
+                    buffer.putInt(correlationId);
+
+                    // Send the response
+                    outputStream.write(buffer.array());
+                    outputStream.flush();
+                    System.err.println("Sent response with correlation_id = 7");
+
+                } catch (IOException e) {
+                    System.err.println("IOException: " + e.getMessage());
+                }
+            }
+        } catch (IOException e) {
+            System.err.println("IOException: " + e.getMessage());
         }
-      } catch (IOException e) {
-        System.out.println("IOException: " + e.getMessage());
-      }
     }
-  }
 }
