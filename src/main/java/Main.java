@@ -26,7 +26,13 @@ public class Main {
     } catch (IOException e) {
       System.out.println("IOException: " + e.getMessage());
     } finally {
-Expand 7 lines
+      try {
+        if (clientSocket != null) {
+          clientSocket.close();
+        }
+      } catch (IOException e) {
+        System.out.println("IOException: " + e.getMessage());
+      }
     }
   }
   private static void handleRequest(DataInputStream inputStream,
