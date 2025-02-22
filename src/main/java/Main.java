@@ -1,7 +1,4 @@
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.ByteBuffer;
@@ -9,7 +6,7 @@ import java.util.Arrays;
 
 public class Main {
     public static void main(String[] args) {
-        System.err.println("Starting server...");
+        System.out.println("fafka server started");
 
         int port = 9092;
         try (ServerSocket serverSocket = new ServerSocket(port)) {
@@ -20,70 +17,82 @@ public class Main {
             // Wait for connection from client
             while (true) {
                 try (Socket clientSocket = serverSocket.accept();
-                     InputStream in = clientSocket.getInputStream();
+                     DataInputStream in = new DataInputStream(clientSocket.getInputStream());
                      OutputStream out = clientSocket.getOutputStream()) {
 
-                    System.err.println("Client connected.");
+                    System.out.println("Client connected.");
 
                     // Handle multiple requests from the same client
                     while (true) {
                         try {
-                            // Read the first 4 bytes for message_size
-                            byte[] sizeBytes = in.readNBytes(4);
-                            if (sizeBytes.length < 4) {
-                                System.err.println("Client disconnected.");
-                                break; // Exit the loop if the client disconnects
-                            }
-
-                            // Read the request header
-                            byte[] apiKey = in.readNBytes(2); // API key (2 bytes)
-                            byte[] apiVersionBytes = in.readNBytes(2); // API version (2 bytes)
-                            short apiVersion = ByteBuffer.wrap(apiVersionBytes).getShort();
-                            byte[] correlationId = in.readNBytes(4); // Correlation ID (4 bytes)
-
-                            // Build the response
-                            ByteArrayOutputStream bos = new ByteArrayOutputStream();
-
-                            // Write correlation_id (4 bytes)
-                            bos.write(correlationId);
-
-                            // Handle APIVersions request
-                            if (apiVersion < 0 || apiVersion > 4) {
-                                // Unsupported version, respond with error code 35 (UNSUPPORTED_VERSION)
-                                bos.write(new byte[]{0, 35}); // Error code (2 bytes)
-                            } else {
-                                // Valid version, respond with API versions
-                                bos.write(new byte[]{0, 0}); // Error code (2 bytes, no error)
-                                bos.write(2); // Array size (1 byte, non-standard)
-                                bos.write(new byte[]{0, 18}); // API key 18 (API_VERSIONS)
-                                bos.write(new byte[]{0, 3}); // Min version
-                                bos.write(new byte[]{0, 4}); // Max version
-                                bos.write(0); // Tagged fields (1 byte)
-                                bos.write(new byte[]{0, 0, 0, 0}); // Throttle time (4 bytes)
-                                bos.write(0); // Tagged fields (1 byte)
-                            }
-
-                            // Write the response size (4 bytes)
-                            byte[] response = bos.toByteArray();
-                            byte[] responseSizeBytes = ByteBuffer.allocate(4).putInt(response.length).array();
-
-                            // Send the response
-                            out.write(responseSizeBytes);
-                            out.write(response);
-                            out.flush();
-
-                            System.err.println("Response sent: " + Arrays.toString(response));
+                            handleRequest(in, out);
                         } catch (IOException e) {
-                            System.err.println("IOException: " + e.getMessage());
-                            break; // Exit the loop if an error occurs
+                            System.out.println("Client disconnected or error occurred: " + e.getMessage());
+                            break; // Exit the loop if the client disconnects or an error occurs
                         }
                     }
                 } catch (IOException e) {
-                    System.err.println("IOException: " + e.getMessage());
+                    System.out.println("IOException: " + e.getMessage());
                 }
             }
         } catch (IOException e) {
-            System.err.println("IOException: " + e.getMessage());
+            System.out.println("IOException: " + e.getMessage());
+        }
+    }
+
+    private static void handleRequest(DataInputStream inputStream, OutputStream outputStream) throws IOException {
+        // Read the request message
+        int incomingMessageSize = inputStream.readInt();
+        byte[] requestApiKeyBytes = inputStream.readNBytes(2);
+        short requestApiVersion = inputStream.readShort();
+        byte[] correlationIdBytes = inputStream.readNBytes(4);
+        byte[] remainingBytes = new byte[incomingMessageSize - 8];
+        inputStream.readFully(remainingBytes);
+
+        // Build the response message
+        ByteArrayOutputStream byteArrayStream = new ByteArrayOutputStream();
+
+        // .ResponseHeader
+        //   .correlation_id
+        byteArrayStream.write(correlationIdBytes);
+
+        // .ResponseBody
+        //   .error_code
+        byteArrayStream.write(getErrorCode(requestApiVersion)); // 2 bytes
+
+        //   .num_api_keys
+        byteArrayStream.write(new byte[]{0, 1}); // Array length (2 bytes, standard INT16)
+
+        //   .api_key
+        byteArrayStream.write(new byte[]{0, 18}); // API key 18 (API_VERSIONS)
+
+        //   .min_version
+        byteArrayStream.write(new byte[]{0, 0}); // Min version (2 bytes)
+
+        //   .max_version
+        byteArrayStream.write(new byte[]{0, 4}); // Max version (2 bytes)
+
+        //   .throttle_time_ms
+        byteArrayStream.write(new byte[]{0, 0, 0, 0}); // Throttle time (4 bytes)
+
+        //   .TAG_BUFFER
+        byteArrayStream.write(new byte[]{0}); // Tagged fields (1 byte)
+
+        // Write the response message
+        byte[] responseBytes = byteArrayStream.toByteArray();
+        outputStream.write(ByteBuffer.allocate(4).putInt(responseBytes.length).array()); // Message size (4 bytes)
+        outputStream.write(responseBytes); // Response body
+        outputStream.flush();
+
+        System.out.println("Response sent: " + Arrays.toString(responseBytes));
+    }
+
+    // Returns the error code as a 2-byte array
+    private static byte[] getErrorCode(short requestApiVersion) {
+        if (requestApiVersion < 0 || requestApiVersion > 4) {
+            return new byte[]{0, 35}; // Error code 35 (UNSUPPORTED_VERSION)
+        } else {
+            return new byte[]{0, 0}; // No error
         }
     }
 }
