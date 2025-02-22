@@ -21,7 +21,7 @@ public class Main {
                     // Read the first 10 bytes (header portion of request)
                     byte[] headerBuffer = new byte[10];
                     int bytesRead = inputStream.read(headerBuffer);
-                    
+
                     if (bytesRead < 10) {
                         System.err.println("Invalid request, header too short.");
                         continue;
@@ -33,15 +33,15 @@ public class Main {
                     short apiKey = requestBuffer.getShort(); // Read API key (2 bytes)
                     short apiVersion = requestBuffer.getShort(); // Read API version (2 bytes)
                     int correlationId = requestBuffer.getInt(); // Read correlation_id (4 bytes)
-                    
+
                     System.err.println("Extracted correlation_id: " + correlationId);
 
                     // Construct response
-                    int messageSize = 4;  // Placeholder for now
+                    int messageSize = 8;  // Total size: 4 bytes (message_size) + 4 bytes (correlation_id)
 
-                    ByteBuffer responseBuffer = ByteBuffer.allocate(8);
-                    responseBuffer.putInt(messageSize);
-                    responseBuffer.putInt(correlationId); // Use extracted correlation_id
+                    ByteBuffer responseBuffer = ByteBuffer.allocate(messageSize);
+                    responseBuffer.putInt(messageSize);  // message_size (4 bytes)
+                    responseBuffer.putInt(correlationId); // correlation_id (4 bytes)
 
                     // Send response back
                     outputStream.write(responseBuffer.array());
