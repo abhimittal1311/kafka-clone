@@ -4,8 +4,8 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>io.codecrafters</groupId>
-    <artifactId>codecrafters-kafka</artifactId>
+    <groupId>com.abhishek</groupId>
+    <artifactId>kafka-server</artifactId>
     <version>1.0</version>
 
     <properties>
@@ -21,7 +21,7 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-assembly-plugin</artifactId>
                 <configuration>
-                    <finalName>codecrafters-kafka</finalName> <!-- Please do not change this final artifact name-->
+                    <finalName>kafka-server</finalName> <!-- Updated artifact name -->
                     <descriptorRefs>
                         <descriptorRef>jar-with-dependencies</descriptorRef>
                     </descriptorRefs>
@@ -29,11 +29,9 @@
                     <archive>
                         <manifest>
                             <addClasspath>true</addClasspath>
-                            <!-- This is the main class of your program which will be executed-->
-                            <mainClass>Main</mainClass>
+                            <mainClass>Main</mainClass> <!-- Main class of your program -->
                         </manifest>
                     </archive>
-                    <outputDirectory>${dir}</outputDirectory>
                 </configuration>
 
                 <executions>
