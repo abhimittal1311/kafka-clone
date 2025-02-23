@@ -27,7 +27,7 @@ public class Main {
   private static Map<UUID, List<String>> topicToMessagePath = new HashMap<>();
   public static void main(String[] args) {
     int port = 9092;
-    System.err.println("");
+    System.err.println("Starting server on port "+port+"...");
     if (!args[0].isEmpty()) {
       Path propertiesPath = Path.of(args[0].trim());
       try {
