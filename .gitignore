@@ -1,5 +1,3 @@
 *.jar
 target/
 .idea/
-codecrafters.yml
-your_program.sh
