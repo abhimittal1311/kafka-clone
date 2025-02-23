@@ -14,7 +14,7 @@ public class APIVersionsResponse extends ResponseBody {
   private CompactArray<APIVersions> apiVersionsArray;
   private int throttleTime = 0;
   private TagBuffer tagBuffer = new TagBuffer();
-  public APIVersionsResponse(Request<?> request) {
+  protected APIVersionsResponse(Request<?> request) {
     if (request.header().getRequestAPIVersion() != 4) {
       this.errorCode = 35;
     }
@@ -25,6 +25,9 @@ public class APIVersionsResponse extends ResponseBody {
             ));
     this.apiVersionsArray =
         CompactArray.withElements(apiVersionsList, new APIVersionsSerializer());
+  }
+  public static APIVersionsResponse fromRequest(Request<?> request) {
+    return new APIVersionsResponse(request);
   }
   @Override
   public APIVersionsResponse fromBytebuffer(ByteBuffer data) {

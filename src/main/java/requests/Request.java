@@ -10,8 +10,11 @@ public record Request<T>(RequestHeader header, T body) {
             case 75 -> {
                 return new Request<>(requestHeader, new DescribeTopicPartitionsRequest().fromByteBuffer(data));
             }
+            case 1 -> {
+                return new Request<>(requestHeader, new FetchRequest().fromByteBuffer(data));
+            }
             default -> {
-                System.err.println("Unexpected value: " + requestHeader.getRequestAPIKey());
+                System.err.println("Unimplemented API Key: " + requestHeader.getRequestAPIKey());
                 return new Request<>(requestHeader, null);
             }
         }

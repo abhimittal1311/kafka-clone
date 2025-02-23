@@ -1,6 +1,9 @@
 package shared.serializer;
 
-import shared.*;
+import shared.CompactArray;
+import shared.CompactString;
+import shared.ResponseTopic;
+import shared.TagBuffer;
 import util.StreamUtils;
 
 import java.nio.ByteBuffer;
@@ -29,7 +32,7 @@ public class ResponseTopicSerializer implements ElementSerializer<ResponseTopic>
         topic.setTopicName(CompactString.fromByteBuffer(data));
         topic.setTopicID(new UUID(data.getLong(), data.getLong()));
         topic.setInternal(data.get() != 0);
-        topic.setPartitionCompactArray(CompactArray.fromByteBuffer(data, new PartitionSerializer(), Partition::new));
+        topic.setPartitionCompactArray(CompactArray.fromByteBuffer(data, new PartitionSerializer()));
         topic.setTopicAuthorizedOperations(data.getInt());
         topic.setTagBuffer(TagBuffer.fromByteBuffer(data));
         return topic;

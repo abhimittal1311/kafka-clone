@@ -33,11 +33,11 @@ public class PartitionSerializer implements ElementSerializer<Partition> {
         part.setPartitionIndex(data.getInt());
         part.setLeaderID(data.getInt());
         part.setLeaderEpoch(data.getInt());
-        part.setReplicaNodeArray(CompactArray.fromByteBuffer(data, replicaNodeSerializer, ReplicaNode::new));
-        part.setIsrNodeArray(CompactArray.fromByteBuffer(data, replicaNodeSerializer, ReplicaNode::new));
-        part.setEligibleLeaderReplicas(CompactArray.fromByteBuffer(data, replicaNodeSerializer, ReplicaNode::new));
-        part.setLastKnownELR(CompactArray.fromByteBuffer(data, replicaNodeSerializer, ReplicaNode::new));
-        part.setOfflineReplicas(CompactArray.fromByteBuffer(data, replicaNodeSerializer, ReplicaNode::new));
+        part.setReplicaNodeArray(CompactArray.fromByteBuffer(data, replicaNodeSerializer));
+        part.setIsrNodeArray(CompactArray.fromByteBuffer(data, replicaNodeSerializer));
+        part.setEligibleLeaderReplicas(CompactArray.fromByteBuffer(data, replicaNodeSerializer));
+        part.setLastKnownELR(CompactArray.fromByteBuffer(data, replicaNodeSerializer));
+        part.setOfflineReplicas(CompactArray.fromByteBuffer(data, replicaNodeSerializer));
         part.setTagBuffer(TagBuffer.fromByteBuffer(data));
         return part;
     }

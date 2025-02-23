@@ -22,8 +22,8 @@ public class DescribeTopicPartitionsRequest
   public DescribeTopicPartitionsRequest fromByteBuffer(ByteBuffer data) {
     ElementSerializer<RequestTopic> requestTopicSerializer =
         new RequestTopicSerializer();
-    this.topicsArray = CompactArray.fromByteBuffer(data, requestTopicSerializer,
-                                                   RequestTopic::new);
+    this.topicsArray =
+        CompactArray.fromByteBuffer(data, requestTopicSerializer);
     this.responsePartitionLimit = data.getInt();
     this.cursor = Cursor.from(data, new CursorSerializer());
     this.tagBuffer = TagBuffer.fromByteBuffer(data);

@@ -1,11 +1,11 @@
 package log;
 import java.nio.ByteBuffer;
 import java.util.UUID;
-import java.util.function.Supplier;
 import shared.CompactArray;
 import shared.VarInt;
 import shared.serializer.IntegerSerializer;
 import shared.serializer.UUIDSerializer;
+import util.StreamUtils;
 public class PartitionRecord extends ValueRecord {
   private int partitionID;
   private UUID topicUUID;
@@ -37,27 +37,45 @@ public class PartitionRecord extends ValueRecord {
   @Override
   protected void parse(ByteBuffer data) {
     IntegerSerializer integerSerializer = new IntegerSerializer();
-    Supplier<Integer> defaultIntValue = () -> - 1;
-    Supplier<UUID> defaultUUID =
-        () -> UUID.fromString("00000000-0000-0000-0000-000000000000");
+    this.length = VarInt.fromByteBuffer(data);
     this.frameVersion = data.get();
     this.type = data.get();
     this.version = data.get();
     this.partitionID = data.getInt();
     this.topicUUID = new UUID(data.getLong(), data.getLong());
-    this.replicaArray =
-        CompactArray.fromByteBuffer(data, integerSerializer, defaultIntValue);
+    this.replicaArray = CompactArray.fromByteBuffer(data, integerSerializer);
     this.inSyncReplicaArray =
-        CompactArray.fromByteBuffer(data, integerSerializer, defaultIntValue);
+        CompactArray.fromByteBuffer(data, integerSerializer);
     this.removingReplicasArray =
-        CompactArray.fromByteBuffer(data, integerSerializer, defaultIntValue);
+        CompactArray.fromByteBuffer(data, integerSerializer);
     this.addingReplicasArray =
-        CompactArray.fromByteBuffer(data, integerSerializer, defaultIntValue);
+        CompactArray.fromByteBuffer(data, integerSerializer);
     this.leader = data.getInt();
     this.leaderEpoch = data.getInt();
     this.partitionEpoch = data.getInt();
     this.directoriesArray =
-        CompactArray.fromByteBuffer(data, new UUIDSerializer(), defaultUUID);
+        CompactArray.fromByteBuffer(data, new UUIDSerializer());
     this.taggedFieldsCount = VarInt.fromByteBuffer(data);
+  }
+  @Override
+  public byte[] toBytes() {
+    return StreamUtils.toBytes(dos -> {
+      dos.write(this.length.toBytes());
+      dos.write(this.frameVersion);
+      dos.write(this.type);
+      dos.write(this.version);
+      dos.writeInt(this.partitionID);
+      dos.writeLong(this.topicUUID.getMostSignificantBits());
+      dos.writeLong(this.topicUUID.getLeastSignificantBits());
+      dos.write(this.replicaArray.toBytes());
+      dos.write(this.inSyncReplicaArray.toBytes());
+      dos.write(this.removingReplicasArray.toBytes());
+      dos.write(this.addingReplicasArray.toBytes());
+      dos.writeInt(this.leader);
+      dos.writeInt(this.leaderEpoch);
+      dos.writeInt(this.partitionEpoch);
+      dos.write(this.directoriesArray.toBytes());
+      dos.write(this.taggedFieldsCount.toBytes());
+    });
   }
 }

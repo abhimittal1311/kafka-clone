@@ -6,15 +6,15 @@ public class Partition {
   private int leaderID;
   private int leaderEpoch;
   private CompactArray<ReplicaNode> replicaNodeArray =
-      CompactArray.empty(new ReplicaNodeSerializer(), ReplicaNode::new);
+      CompactArray.empty(new ReplicaNodeSerializer());
   private CompactArray<ReplicaNode> isrNodeArray =
-      CompactArray.empty(new ReplicaNodeSerializer(), ReplicaNode::new);
+      CompactArray.empty(new ReplicaNodeSerializer());
   private CompactArray<ReplicaNode> eligibleLeaderReplicas =
-      CompactArray.empty(new ReplicaNodeSerializer(), ReplicaNode::new);
+      CompactArray.empty(new ReplicaNodeSerializer());
   private CompactArray<ReplicaNode> lastKnownELR =
-      CompactArray.empty(new ReplicaNodeSerializer(), ReplicaNode::new);
+      CompactArray.empty(new ReplicaNodeSerializer());
   private CompactArray<ReplicaNode> offlineReplicas =
-      CompactArray.empty(new ReplicaNodeSerializer(), ReplicaNode::new);
+      CompactArray.empty(new ReplicaNodeSerializer());
   private TagBuffer tagBuffer = new TagBuffer();
   public Partition() {}
   public Partition(short errorCode, int partitionIndex, int leaderID,
